@@ -1,0 +1,129 @@
+---
+title: "Machine Learning on Correct and Incorrect Barbell Lifts"
+author: "Darky"
+date: "1/6/2020"
+output: html_document
+---
+
+## Executive Summary
+This project is to create a model on correct and incorrect manner of barbell lifts of the participants, and then use the model to predict the actions to determine the accuracy of the model.
+
+These manner is grouped under variable name *classe*.
+
+Since this project's main focus is machine learning, 
+hence process such as getting and cleaning data is sourced to other files 
+which can be found in this directory
+
+These files are:
+
+- DownloadData.R
+- LoadData.R
+- TidyData.R
+
+Data source can be found under section **Citation**.
+
+## Prepare Data
+Download data to local.
+```{r eval=FALSE}
+## RUN Once only after you set up your working directory
+source("DownloadData.R")
+```
+
+Load data *training* and *testing* into environment.
+```{r cache=TRUE,warning=FALSE}
+source("LoadData.R")
+```
+
+Tidy data, and save them as *tidyTraining* and *tidyTesting*.
+```{r cache=TRUE,message=FALSE,warning=FALSE}
+source("TidyData.R")
+```
+
+## Import Library
+```{r warning=FALSE, message=FALSE}
+library(dplyr)
+library(caret)
+```
+
+## Data Exploration
+```{r cache=TRUE}
+head(tidyTraining,3)
+```
+
+## Feature Selection
+After exploring the data, column **X** and **user_name** are confirmed are not confounding factors for **classe**. Hence we will drop them from **tidyTraining** and save it as **fsTraining**.
+```{r results = 'hide'}
+dropCol <- c("X","user_name")
+fsTraining <- tidyTraining %>% select(-one_of(dropCol))
+```
+
+According to the [research paper](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf), **Section 5.1 Feature extraction and selection** mentioned that features such as *mean*, *variance*,*standard deviation*, *max*, *min*, *amplitude*, *kurtosis* and *skewness* are calculated from the euler angles of the four sensors. Hence, these fields can be safely dropped as they represent as summary of the raw measurements.
+```{r results = 'hide'}
+pattern <- "avg_|var_|stddev_|max_|min_|amplitude_|kurtosis_|skewness_"
+fsTraining <- fsTraining %>% select(-matches(pattern, ignore.case = TRUE))
+```
+
+## Cross Validation
+Method k-fold cross validation is used to validate the built model accuracy.
+
+The number of folds selected are 5.
+
+Parallel processing is also turned on in this setting to minimize model building time.
+
+These settings are inserted into **trainControlSett** variable.
+```{r}
+# Configure train control setting
+trainControlSett <- trainControl(method = "cv", 
+                              number = 5,
+                              allowParallel = TRUE)
+```
+
+## Parallel Processing
+Set up parallel processing.
+```{r warning=FALSE, message=FALSE}
+# Configure parallel processing
+# Note for parallel processing: https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+```
+
+## Build Model
+To have a accurate prediction for this project, we will required at least 99.9% accuracy.
+
+Hence, the classification model selected will be randomForest,
+which provides high prediction accuracy. 
+
+The data we will be using to train our model will be **fsTraining**.
+
+The **trainControlSett** is applied in here along in the model building.
+
+A seed is also set here to ensure reproducibility.
+```{r cache=TRUE}
+set.seed(1337)
+model <- train(classe~., data = fsTraining, method = "rf", 
+               trControl = trainControlSett)
+print(model)
+```
+From the model result, we can see that highest accuracy is achieved by having only 29 variables splitting at each tree node.
+
+## Turn Off Parallel Processing
+Deregister parallel processing cluster with code below.
+```{r}
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+## Predict Result
+**tidyTesting** data set will be used to predict the 20 results of **classe** with the created model.
+```{r}
+predict(model,newdata = tidyTesting)
+```
+
+## Citation
+Data sourced:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. 
+
+[Qualitative Activity Recognition of Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201). Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
