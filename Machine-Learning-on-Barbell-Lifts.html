@@ -583,6 +583,106 @@ fsTraining &lt;- tidyTraining %&gt;% select(-one_of(dropCol))</code></pre>
 <pre class="r"><code>pattern &lt;- &quot;avg_|var_|stddev_|max_|min_|amplitude_|kurtosis_|skewness_&quot;
 fsTraining &lt;- fsTraining %&gt;% select(-matches(pattern, ignore.case = TRUE))</code></pre>
 </div>
+<div id="splitting-data" class="section level2">
+<h2>Splitting Data</h2>
+<p>In order to do model selection and out of sample error calculation, we will be splitting fsTraining into 60% and 40% as <strong>fsTrainingSub</strong> and <strong>fsTestingSub</strong> respectively.</p>
+<pre class="r"><code>set.seed(1337)
+trainIndex &lt;- createDataPartition(fsTraining$classe, p = .6, 
+                                  list = FALSE, 
+                                  times = 1)
+fsTrainingSub &lt;- fsTraining[trainIndex,]
+fsTestingSub &lt;- fsTraining[-trainIndex,]</code></pre>
+</div>
+<div id="model-selection" class="section level2">
+<h2>Model Selection</h2>
+<p>We will be using a few model to decide which model to use.</p>
+<div id="rpart" class="section level3">
+<h3>Rpart</h3>
+<p>A simple classification tree is used to create a model.</p>
+<pre class="r"><code>modelRpart &lt;- train(classe~., data = fsTrainingSub, method = &quot;rpart&quot;)
+confusionMatrix(predict(modelRpart,fsTestingSub), fsTestingSub$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2225 1518 1368 1286  791
+##          B    0    0    0    0    0
+##          C    0    0    0    0    0
+##          D    0    0    0    0    0
+##          E    7    0    0    0  651
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.3666          
+##                  95% CI : (0.3559, 0.3773)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.125           
+##                                           
+##  Mcnemar&#39;s Test P-Value : NA              
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9969   0.0000   0.0000   0.0000  0.45146
+## Specificity            0.1160   1.0000   1.0000   1.0000  0.99891
+## Pos Pred Value         0.3095      NaN      NaN      NaN  0.98936
+## Neg Pred Value         0.9894   0.8065   0.8256   0.8361  0.88996
+## Prevalence             0.2845   0.1935   0.1744   0.1639  0.18379
+## Detection Rate         0.2836   0.0000   0.0000   0.0000  0.08297
+## Detection Prevalence   0.9161   0.0000   0.0000   0.0000  0.08386
+## Balanced Accuracy      0.5564   0.5000   0.5000   0.5000  0.72518</code></pre>
+<p>The accuracy for this model is too low, hence we will avoid using this.</p>
+</div>
+<div id="random-forest" class="section level3">
+<h3>Random Forest</h3>
+<pre class="r"><code>modelRf &lt;- train(classe~., data = fsTrainingSub, method = &quot;rf&quot;)
+confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2232    1    0    0    0
+##          B    0 1516    3    0    0
+##          C    0    1 1364    2    0
+##          D    0    0    1 1284    1
+##          E    0    0    0    0 1441
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.9989          
+##                  95% CI : (0.9978, 0.9995)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.9985          
+##                                           
+##  Mcnemar&#39;s Test P-Value : NA              
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            1.0000   0.9987   0.9971   0.9984   0.9993
+## Specificity            0.9998   0.9995   0.9995   0.9997   1.0000
+## Pos Pred Value         0.9996   0.9980   0.9978   0.9984   1.0000
+## Neg Pred Value         1.0000   0.9997   0.9994   0.9997   0.9998
+## Prevalence             0.2845   0.1935   0.1744   0.1639   0.1838
+## Detection Rate         0.2845   0.1932   0.1738   0.1637   0.1837
+## Detection Prevalence   0.2846   0.1936   0.1742   0.1639   0.1837
+## Balanced Accuracy      0.9999   0.9991   0.9983   0.9991   0.9997</code></pre>
+<p>Since the model random forest has higher accuracy, we will be select it as our project model.</p>
+</div>
+</div>
+<div id="out-of-sample-error-rate" class="section level2">
+<h2>Out of Sample Error Rate</h2>
+<p>The out of sample error rate can be calculated as below:</p>
+<pre class="r"><code>cm &lt;- confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)
+errorRate &lt;- 1 - cm$overall[&quot;Accuracy&quot;]
+errorRate</code></pre>
+<pre><code>##    Accuracy 
+## 0.001147081</code></pre>
+</div>
 <div id="cross-validation" class="section level2">
 <h2>Cross Validation</h2>
 <p>Method k-fold cross validation is used to validate the built model accuracy and mitigate overfitting.</p>

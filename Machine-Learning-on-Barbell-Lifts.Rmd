@@ -63,6 +63,46 @@ pattern <- "avg_|var_|stddev_|max_|min_|amplitude_|kurtosis_|skewness_"
 fsTraining <- fsTraining %>% select(-matches(pattern, ignore.case = TRUE))
 ```
 
+## Splitting Data
+In order to do model selection and out of sample error calculation,
+we will be splitting fsTraining into 60% and 40% as **fsTrainingSub** and **fsTestingSub** respectively.
+```{r}
+set.seed(1337)
+trainIndex <- createDataPartition(fsTraining$classe, p = .6, 
+                                  list = FALSE, 
+                                  times = 1)
+fsTrainingSub <- fsTraining[trainIndex,]
+fsTestingSub <- fsTraining[-trainIndex,]
+```
+
+## Model Selection
+We will be using a few model to decide which model to use.
+
+### Rpart
+A simple classification tree is used to create a model.
+```{r cache=TRUE}
+modelRpart <- train(classe~., data = fsTrainingSub, method = "rpart")
+confusionMatrix(predict(modelRpart,fsTestingSub), fsTestingSub$classe)
+```
+The accuracy for this model is too low, hence we will avoid using this.
+
+### Random Forest
+```{r cache=TRUE}
+modelRf <- train(classe~., data = fsTrainingSub, method = "rf")
+confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)
+```
+
+Since the model random forest has higher accuracy, 
+we will be select it as our project model.
+
+## Out of Sample Error Rate
+The out of sample error rate can be calculated as below:
+```{r}
+cm <- confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)
+errorRate <- 1 - cm$overall["Accuracy"]
+errorRate
+```
+
 ## Cross Validation
 Method k-fold cross validation is used to validate the built model accuracy and mitigate overfitting.
 

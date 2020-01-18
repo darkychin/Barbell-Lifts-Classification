@@ -6,13 +6,13 @@ output: html_document
 ---
 
 ## Executive Summary
-This project is to create a model on correct and incorrect manner of barbell lifts of the participants, and then use the model to predict the actions to determine the accuracy of the model.
+This project is to create a model on correct and incorrect manner of barbell lifts of the participants, and then use the model to predict the actions from the test data set.
 
 These manner is grouped under variable name *classe*.
 
 Since this project's main focus is machine learning, 
 hence process such as getting and cleaning data is sourced to other files 
-which can be found in this directory
+which can be found in this directory.
 
 These files are:
 
@@ -29,12 +29,12 @@ Download data to local.
 source("DownloadData.R")
 ```
 
-Load data *training* and *testing* into environment.
+Load data **training** and **testing** into environment.
 ```{r cache=TRUE,warning=FALSE}
 source("LoadData.R")
 ```
 
-Tidy data, and save them as *tidyTraining* and *tidyTesting*.
+Tidy data, and save them as **tidyTraining** and **tidyTesting**.
 ```{r cache=TRUE,message=FALSE,warning=FALSE}
 source("TidyData.R")
 ```
@@ -51,20 +51,60 @@ head(tidyTraining,3)
 ```
 
 ## Feature Selection
-After exploring the data, column **X** and **user_name** are confirmed are not confounding factors for **classe**. Hence we will drop them from **tidyTraining** and save it as **fsTraining**.
+After exploring the data, column *X* and *user_name* are not confounding factors for *classe*. Hence we will drop them from **tidyTraining** and then save it as **fsTraining**.
 ```{r results = 'hide'}
 dropCol <- c("X","user_name")
 fsTraining <- tidyTraining %>% select(-one_of(dropCol))
 ```
 
-According to the [research paper](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf), **Section 5.1 Feature extraction and selection** mentioned that features such as *mean*, *variance*,*standard deviation*, *max*, *min*, *amplitude*, *kurtosis* and *skewness* are calculated from the euler angles of the four sensors. Hence, these fields can be safely dropped as they represent as summary of the raw measurements.
+According to the [research paper](http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf), **Section 5.1 Feature extraction and selection** mentioned that features such as *mean*, *variance*,*standard deviation*, *max*, *min*, *amplitude*, *kurtosis* and *skewness* are calculated from the euler angles of the four sensors. Hence, these fields can be safely dropped as they represent as the summary of the raw measurements.
 ```{r results = 'hide'}
 pattern <- "avg_|var_|stddev_|max_|min_|amplitude_|kurtosis_|skewness_"
 fsTraining <- fsTraining %>% select(-matches(pattern, ignore.case = TRUE))
 ```
 
+## Splitting Data
+In order to do model selection and out of sample error calculation,
+we will be splitting fsTraining into 60% and 40% as **fsTrainingSub** and **fsTestingSub** respectively.
+```{r}
+set.seed(1337)
+trainIndex <- createDataPartition(fsTraining$classe, p = .6, 
+                                  list = FALSE, 
+                                  times = 1)
+fsTrainingSub <- fsTraining[trainIndex,]
+fsTestingSub <- fsTraining[-trainIndex,]
+```
+
+## Model Selection
+We will be using a few model to decide which model to use.
+
+### Rpart
+A simple classification tree is used to create a model.
+```{r cache=TRUE}
+modelRpart <- train(classe~., data = fsTrainingSub, method = "rpart")
+confusionMatrix(predict(modelRpart,fsTestingSub), fsTestingSub$classe)
+```
+The accuracy for this model is too low, hence we will avoid using this.
+
+### Random Forest
+```{r cache=TRUE}
+modelRf <- train(classe~., data = fsTrainingSub, method = "rf")
+confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)
+```
+
+Since the model random forest has higher accuracy, 
+we will be select it as our project model.
+
+## Out of Sample Error Rate
+The out of sample error rate can be calculated as below:
+```{r}
+cm <- confusionMatrix(predict(modelRf,fsTestingSub), fsTestingSub$classe)
+errorRate <- 1 - cm$overall["Accuracy"]
+errorRate
+```
+
 ## Cross Validation
-Method k-fold cross validation is used to validate the built model accuracy.
+Method k-fold cross validation is used to validate the built model accuracy and mitigate overfitting.
 
 The number of folds selected are 5.
 
@@ -90,7 +130,7 @@ registerDoParallel(cluster)
 ```
 
 ## Build Model
-To have a accurate prediction for this project, we will required at least 99.9% accuracy.
+To have an accurate prediction for this project, we will required at least 99.9% accuracy.
 
 Hence, the classification model selected will be randomForest,
 which provides high prediction accuracy. 
@@ -116,13 +156,13 @@ registerDoSEQ()
 ```
 
 ## Predict Result
-**tidyTesting** data set will be used to predict the 20 results of **classe** with the created model.
+**tidyTesting** data set will be used to predict the 20 results of *classe* with the created model.
 ```{r}
 predict(model,newdata = tidyTesting)
 ```
 
 ## Citation
-Data sourced:
+Data source:
 
 Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. 
 
